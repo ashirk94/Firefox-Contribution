@@ -1,0 +1,107 @@
+diff --git a/toolkit/content/aboutSupport.js b/toolkit/content/aboutSupport.js
+--- a/toolkit/content/aboutSupport.js
++++ b/toolkit/content/aboutSupport.js
+@@ -676,10 +676,15 @@
+         addRow(where, colKey, [new Text(value)]);
+       }
+     }
+ 
+     // graphics-features-tbody
++    let devicePixelRatios = data.graphicsDevicePixelRatios;
++    addRow("features", "graphicsDevicePixelRatios", [
++      new Text(devicePixelRatios),
++    ]);
++
+     let compositor = "";
+     if (data.windowLayerManagerRemote) {
+       compositor = data.windowLayerManagerType;
+     } else {
+       let noOMTCString = await document.l10n.formatValue("main-thread-no-omtc");
+@@ -689,10 +694,11 @@
+     delete data.windowLayerManagerRemote;
+     delete data.windowLayerManagerType;
+     delete data.numTotalWindows;
+     delete data.numAcceleratedWindows;
+     delete data.numAcceleratedWindowsMessage;
++    delete data.graphicsDevicePixelRatios;
+ 
+     addRow(
+       "features",
+       "asyncPanZoom",
+       apzInfo.length
+diff --git a/toolkit/locales/en-US/toolkit/about/aboutSupport.ftl b/toolkit/locales/en-US/toolkit/about/aboutSupport.ftl
+--- a/toolkit/locales/en-US/toolkit/about/aboutSupport.ftl
++++ b/toolkit/locales/en-US/toolkit/about/aboutSupport.ftl
+@@ -111,10 +111,11 @@
+ graphics-gpu1-title = GPU #1
+ graphics-gpu2-title = GPU #2
+ graphics-decision-log-title = Decision Log
+ graphics-crash-guards-title = Crash Guard Disabled Features
+ graphics-workarounds-title = Workarounds
++graphics-device-pixel-ratios = Window Device Pixel Ratios
+ # Windowing system in use on Linux (e.g. X11, Wayland).
+ graphics-window-protocol = Window Protocol
+ # Desktop environment in use on Linux (e.g. GNOME, KDE, XFCE, etc).
+ graphics-desktop-environment = Desktop Environment
+ place-database-title = Places Database
+diff --git a/toolkit/modules/Troubleshoot.sys.mjs b/toolkit/modules/Troubleshoot.sys.mjs
+--- a/toolkit/modules/Troubleshoot.sys.mjs
++++ b/toolkit/modules/Troubleshoot.sys.mjs
+@@ -562,30 +562,36 @@
+       Promise.all(promises).then(() => done(data));
+     }
+ 
+     data.numTotalWindows = 0;
+     data.numAcceleratedWindows = 0;
++
++    let devicePixelRatios = [];
++
+     for (let win of Services.ww.getWindowEnumerator()) {
+       let winUtils = win.windowUtils;
+       try {
+         // NOTE: windowless browser's windows should not be reported in the graphics troubleshoot report
+         if (
+           winUtils.layerManagerType == "None" ||
+           !winUtils.layerManagerRemote
+         ) {
+           continue;
+         }
++        devicePixelRatios.push(win.devicePixelRatio);
++
+         data.numTotalWindows++;
+         data.windowLayerManagerType = winUtils.layerManagerType;
+         data.windowLayerManagerRemote = winUtils.layerManagerRemote;
+       } catch (e) {
+         continue;
+       }
+       if (data.windowLayerManagerType != "Basic") {
+         data.numAcceleratedWindows++;
+       }
+     }
++    data.graphicsDevicePixelRatios = devicePixelRatios;
+ 
+     // If we had no OMTC windows, report back Basic Layers.
+     if (!data.windowLayerManagerType) {
+       data.windowLayerManagerType = "Basic";
+       data.windowLayerManagerRemote = false;
+diff --git a/toolkit/modules/tests/browser/browser_Troubleshoot.js b/toolkit/modules/tests/browser/browser_Troubleshoot.js
+--- a/toolkit/modules/tests/browser/browser_Troubleshoot.js
++++ b/toolkit/modules/tests/browser/browser_Troubleshoot.js
+@@ -574,10 +574,16 @@
+         },
+         numAcceleratedWindows: {
+           required: true,
+           type: "number",
+         },
++        graphicsDevicePixelRatios: {
++          type: "array",
++          items: {
++            type: "number",
++          },
++        },
+         windowLayerManagerType: {
+           type: "string",
+         },
+         windowLayerManagerRemote: {
+           type: "boolean",
+
